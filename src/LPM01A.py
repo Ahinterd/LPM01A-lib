@@ -3,14 +3,14 @@ from time import time
 from enum import Enum
 import threading
 import re
-from src.SerialCommunication import SerialCommunication
-from src.CsvWriter import CsvWriter
-from src.UnitConversions import UnitConversions
+from SerialCommunication import SerialCommunication
+from CsvWriter import CsvWriter
+from UnitConversions import UnitConversions
 
 
 class LPM01A:
     def __init__(
-        self, port: str, baud_rate: int, print_info_every_ms: int = 10_000, folderpath:str = None, filename:str = None
+        self, port: str, baud_rate: int, folderpath:str = None, filename:str = None
     ) -> None:
         """
         Initializes the LPM01A device with the given port and baud rate.
@@ -18,7 +18,6 @@ class LPM01A:
         Args:
             port (str): The port where the LPM01A device is connected.
             baud_rate (int): The baud rate for the serial communication.
-            print_info_every_ms (int): The interval in ms to print the info.
         """
         self.serial_comm = SerialCommunication(port, baud_rate)
         self.serial_comm.open_serial()
@@ -26,8 +25,6 @@ class LPM01A:
         self.csv_writer.write("Current (uA),rx timestamp (us),board timestamps (ms)\n")
 
         self.uc = UnitConversions()
-
-        self.print_info_every_ms = print_info_every_ms
 
         self.mode = None
 
@@ -74,7 +71,7 @@ class LPM01A:
         """
         Starts the capture of the LPM01A device.
         """
-        print(f"Starting capture, printing info every {self.print_info_every_ms} ms")
+        print("Starting capture")
         self._send_command_wait_for_response("start")
         
         # Start reading loop as thread
@@ -208,7 +205,7 @@ class LPM01A:
             self.num_of_captured_values += 1
 
             self.sum_current_values_ua += current
-            self.number_of_current_values += 1           
+            self.number_of_current_values += 1        
         except:
             print(f"Error parsing data: {response}")
             return None
