@@ -5,12 +5,14 @@ import os
 class CsvWriter:
     CSV_LOGS_FOLDER = "lpm01a_csv_files"
 
-    def __init__(self, filename: str = None) -> None:
+    def __init__(self, filename: str = None, foldername:str = None) -> None:
         """Initializes the CsvWriter with the given filename.
 
         Args:
             filename (str): The filename for the CSV file. If None, a filename will be generated based on the current date and time.
         """
+        if foldername is not None:
+            self.CSV_LOGS_FOLDER = foldername
 
         if filename is None:
             filename = self._make_filename()
