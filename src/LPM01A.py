@@ -39,84 +39,81 @@ class LPM01A:
         self.sum_current_values_ua = 0
         self.number_of_current_values = 0
 
-    def _read_and_parse_ascii(self) -> None:
+    def _read_and_parse_ascii(self) -> tuple[int, float, float, int, int]:
         """
         Reads and parses the data from the LPM01A device in ASCII mode.
         """
-        while True:
-            response = self.serial_comm.receive_data()
-            if not response:
-                continue
+        response = self.serial_comm.receive_data()
+        if not response:
+            return None
 
-            if "TimeStamp:" in response:
-                try:
-                    match = re.search(
-                        "TimeStamp: (\d+)s (\d+)ms, buff (\d+)%", response
-                    )
-                    if match:
-                        self.board_timestamp_ms = (
-                            int(match.group(2)) + int(match.group(1)) * 1000
-                        )
-                        self.board_buffer_usage_percentage = int(match.group(3))
-
-                except:
-                    print(f"Error parsing timestamp: {response}")
-                continue
-
-            if "-" in response:
-                exponent_sign = "-"
-            elif "+" in response:
-                exponent_sign = "+"
-
+        if "TimeStamp:" in response:
             try:
-                split_response = response.split("-")
-                try:
-                    current = int(split_response[0])  # Extract the raw current value
-                except ValueError:
-                    # When the TimeStamp is received,
-                    # the next current values has \x00 in the beginning so I need to strip it
-                    current = int(split_response[0][1:])
-
-                exponent = int(split_response[1])  # Extract the exponent value
-
-                # Apply the exponent with the correct sign
-                if exponent_sign == "+":
-                    current = current * pow(10, exponent)
-                else:
-                    current = current * pow(10, ((-1) * exponent))
-
-                current = round(self.uc.A_to_uA(current), 4)
-
-                local_timestamp_us = (
-                    int(self.uc.s_to_us(time())) - self.capture_start_us
+                match = re.search(
+                    "TimeStamp: (\d+)s (\d+)ms, buff (\d+)%", response
                 )
-                self.csv_writer.write(
-                    f"{current},{local_timestamp_us},{self.board_timestamp_ms}\n"
-                )
-                self.num_of_captured_values += 1
-
-                self.sum_current_values_ua += current
-                self.number_of_current_values += 1
-
-                if (
-                    self.uc.us_to_ms(local_timestamp_us) - self.last_print_timestamp_ms
-                    > self.print_info_every_ms
-                ):
-                    average_current = (
-                        self.sum_current_values_ua / self.number_of_current_values
+                if match:
+                    self.board_timestamp_ms = (
+                        int(match.group(2)) + int(match.group(1)) * 1000
                     )
-                    average_current = round(average_current, 4)
-                    self.sum_current_values_ua = 0
-                    self.number_of_current_values = 0
-                    print(
-                        f"Average current for previous {self.print_info_every_ms} ms: {average_current} uA\n"
-                        f"Local timestamp: {self.uc.us_to_ms(local_timestamp_us)} ms\n"
-                        f"Num of received values: {self.num_of_captured_values}\n"
-                        f"LPM01A buffer usage: {self.board_buffer_usage_percentage}%\n"
-                    )
-                    self.last_print_timestamp_ms = self.uc.us_to_ms(local_timestamp_us)
+                    self.board_buffer_usage_percentage = int(match.group(3))
+
             except:
-                print(f"Error parsing data: {response}")
+                print(f"Error parsing timestamp: {response}")
+                return None
+            return None
+
+        if "-" in response:
+            exponent_sign = "-"
+        elif "+" in response:
+            exponent_sign = "+"
+
+        try:
+            split_response = response.split("-")
+            try:
+                current = int(split_response[0])  # Extract the raw current value
+            except ValueError:
+                # When the TimeStamp is received,
+                # the next current values has \x00 in the beginning so I need to strip it
+                current = int(split_response[0][1:])
+
+            exponent = int(split_response[1])  # Extract the exponent value
+
+            # Apply the exponent with the correct sign
+            if exponent_sign == "+":
+                current = current * pow(10, exponent)
+            else:
+                current = current * pow(10, ((-1) * exponent))
+
+            current = round(self.uc.A_to_uA(current), 4)
+
+            local_timestamp_us = (
+                int(self.uc.s_to_us(time())) - self.capture_start_us
+            )
+            self.csv_writer.write(
+                f"{current},{local_timestamp_us},{self.board_timestamp_ms}\n"
+            )
+            self.num_of_captured_values += 1
+
+            self.sum_current_values_ua += current
+            self.number_of_current_values += 1
+
+            if (
+                self.uc.us_to_ms(local_timestamp_us) - self.last_print_timestamp_ms
+                > self.print_info_every_ms
+            ):
+                average_current = (
+                    self.sum_current_values_ua / self.number_of_current_values
+                )
+                average_current = round(average_current, 4)
+                self.sum_current_values_ua = 0
+                self.number_of_current_values = 0
+
+                self.last_print_timestamp_ms = self.uc.us_to_ms(local_timestamp_us)
+                return (self.print_info_every_ms, average_current, self.uc.us_to_ms(local_timestamp_us), self.num_of_captured_values, self.board_buffer_usage_percentage)
+        except:
+            print(f"Error parsing data: {response}")
+            return None
 
     def send_command_wait_for_response(
         self, command: str, expected_response: str = None, timeout_s: int = 5
@@ -207,12 +204,12 @@ class LPM01A:
         self.csv_writer.close()
         self.serial_comm.close_serial()
 
-    def read_and_parse_data(self) -> None:
+    def read_and_parse_data(self) -> tuple[int,float, float, int, int]:
         """
         Reads and parses the data from the LPM01A device.
         """
         self.capture_start_us = int(self.uc.s_to_us(time()))
         if self.mode == "ascii":
-            self._read_and_parse_ascii()
+            return self._read_and_parse_ascii()
         else:
             raise NotImplementedError
