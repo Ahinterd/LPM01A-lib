@@ -106,8 +106,11 @@ class LPM01A:
         self.csv_writer.close()
         self.serial_comm.close_serial()
       
-    def get_average_current(self) -> float:        
-        avg = self.sum_current_values_ua / self.number_of_current_values
+    def get_average_current(self) -> float:
+        try:
+            avg = self.sum_current_values_ua / self.number_of_current_values
+        except ZeroDivisionError:
+            avg = 0
         self.sum_current_values_ua = 0
         self.number_of_current_values = 0
         return avg
